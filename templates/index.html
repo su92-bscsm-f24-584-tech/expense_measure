@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Expense Tracker</title>
+<style>
+    body { font-family: Arial, sans-serif; background-color: #f4f6f8; margin: 0; padding: 0; }
+    header { background-color: #4CAF50; color: white; padding: 20px; text-align: center; }
+    .container { max-width: 900px; margin: 20px auto; padding: 20px; background-color: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    h2 { margin-top: 0; }
+    form { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+    form input, form select, form button { padding: 10px; font-size: 14px; border-radius: 6px; border: 1px solid #ccc; }
+    form button { background-color: #4CAF50; color: white; border: none; cursor: pointer; }
+    form button:hover { background-color: #45a049; }
+    table { width: 100%; border-collapse: collapse; }
+    table, th, td { border: 1px solid #ddd; }
+    th, td { padding: 12px; text-align: left; }
+    th { background-color: #f2f2f2; }
+    .summary { display: flex; justify-content: space-between; margin-bottom: 20px; }
+    .summary div { background-color: #e8f5e9; padding: 10px; border-radius: 8px; flex: 1; margin-right: 10px; text-align: center; }
+    .summary div:last-child { margin-right: 0; }
+    #reset-btn { background-color:red;color:white;padding:8px;border:none;border-radius:5px;cursor:pointer;margin-top:10px; }
+    .btn, #reset-btn {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    cursor: pointer;
+    padding: 10px;
+    font-size: 14px;
+    border-radius: 6px;
+    margin: 5px 0;
+}
+
+.btn:hover, #reset-btn:hover {
+    background-color: #45a049;
+}
+
+#reset-btn {
+    background-color: red; /* Keep reset button red */
+}
+
+</style>
+</head>
+<body>
+<header>
+    <h1>Expense Tracker</h1>
+</header>
+
+<div class="container">
+    <h2>Transaction</h2>
+    <form id="transaction-form">
+        <input type="text" name="note" placeholder="Note">
+        <input type="number" name="amount" placeholder="Amount" required>
+        <select name="category">
+            <option value="Food">Food</option>
+            <option value="Transport">Transport</option>
+            <option value="Shopping">Shopping</option>
+            <option value="Other">Other</option>
+        </select>
+        <select name="day" required>
+            <option value="">Select Day</option>
+            <option value="Monday">Monday</option>
+            <option value="Tuesday">Tuesday</option>
+            <option value="Wednesday">Wednesday</option>
+            <option value="Thursday">Thursday</option>
+            <option value="Friday">Friday</option>
+            <option value="Saturday">Saturday</option>
+            <option value="Sunday">Sunday</option>
+        </select>
+        <select name="payment">
+            <option value="Cash">Cash</option>
+            <option value="ATM Card">Card</option>
+            <option value="JAZZCASH">UPI</option>
+        </select>
+        <button type="submit">Add</button>
+    </form>
+
+    <div class="summary">
+        <div>Income: <span id="income-summary">0</span></div>
+        <div>Expenses: <span id="expenses-summary">0</span></div>
+        <div>Remaining: <span id="remaining-summary">0</span></div>
+        
+    </div>
+    
+    <h3>Update Income</h3>
+    <form id="jsonForm">
+      <label>Income:</label>
+      <input type="number" id="income-input" name="income"><br><br>
+      <button type="submit">SAVE</button>
+    </form>
+    
+    <p id="jsonMessage"></p>
+    <br>
+    <button id="reset-btn">RESET All</button>
+
+    <h2>Transaction History</h2>
+    <table id="transaction-table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Date</th>
+                <th>Time</th>
+                <th>Category</th>
+                <th>Payment</th>
+                <th>Day</th>
+                <th>Note</th>
+                <th>Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+        </tbody>
+    </table>
+    <button id="show-graph" class="btn">Show Graph</button>
+    <img id="expense-graph" src="" style="display:none; width:100%; max-width:700px;">
+    <button id="refresh-graph" class="btn" style="display:none;">Refresh Graph</button>
+    
+    
+    
+
+</div>
+<script> incomeSummary = document.getElementById('income-summary');
+const expensesSummary = document.getElementById('expenses-summary');
+const remainingSummary = document.getElementById('remaining-summary');
+const incomeInput = document.getElementById('income-input');
+const jsonMessage = document.getElementById('jsonMessage');
+const form = document.getElementById('transaction-form');
+const tableBody = document.querySelector('#transaction-table tbody');
+const resetBtn = document.getElementById('reset-btn');
+const daySelect = document.querySelector('select[name="day"]');
+const showGraphBtn = document.getElementById('show-graph');
+const graphImg = document.getElementById('expense-graph');
+const refreshGraphBtn = document.getElementById('refresh-graph');
+
+// Auto-select today in day dropdown
+const today = new Date().toLocaleString('en-US', { weekday: 'long' });
+daySelect.value = today;
+
+// Load graph
+async function loadGraph() {
+    try {
+        const res = await fetch('/api/graph');
+        if (res.ok) {
+            graphImg.src = URL.createObjectURL(await res.blob());
+            graphImg.style.display = 'block';
+            refreshGraphBtn.style.display = 'inline-block';
+        } else {
+            graphImg.style.display = 'none';
+            refreshGraphBtn.style.display = 'none';
+            console.error("No graph available.");
+        }
+    } catch(e) {
+        console.error("Error loading graph:", e);
+    }
+}
+
+// Show graph only on click
+showGraphBtn.addEventListener('click', () => {
+    loadGraph();
+    showGraphBtn.style.display = 'none';
+});
+
+// Refresh graph on click
+refreshGraphBtn.addEventListener('click', loadGraph);
+
+// Load summary
+async function loadSummary() {
+    try {
+        const res = await fetch('/api/get-summary');
+        const summary = await res.json();
+        incomeSummary.textContent = summary.income;
+        expensesSummary.textContent = summary.total_expense;
+        remainingSummary.textContent = summary.remaining;
+        remainingSummary.style.color = summary.remaining < 0 ? 'red' : 'black';
+    } catch(e) {
+        console.error("Error loading summary:", e);
+    }
+}
+
+// Load transactions
+async function loadTransactions() {
+    try {
+        const res = await fetch('/api/transactions');
+        const transactions = await res.json();
+        tableBody.innerHTML = '';
+        transactions.forEach(tx => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${tx.id}</td>
+                <td>${tx.date}</td>
+                <td>${tx.time}</td>
+                <td>${tx.category}</td>
+                <td>${tx.payment}</td>
+                <td>${tx.day}</td>
+                <td>${tx.note}</td>
+                <td>${tx.amount}</td>
+            `;
+            tableBody.appendChild(row);
+        });
+    } catch(e) {
+        console.error("Error loading transactions:", e);
+    }
+}
+
+// Add transaction
+form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const formData = new FormData(form);
+    const payload = {
+        note: formData.get('note'),
+        amount: Number(formData.get('amount')),
+        category: formData.get('category'),
+        payment: formData.get('payment'),
+        day: formData.get('day')
+    };
+    try {
+        const res = await fetch('/api/transaction', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify(payload)
+        });
+        const result = await res.json();
+        if(result.status === "success") {
+            loadSummary();
+            loadTransactions();
+        }
+        form.reset();
+        daySelect.value = today;
+    } catch(e) {
+        console.error("Error adding transaction:", e);
+    }
+});
+
+// Update income
+document.getElementById('jsonForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const newIncome = Number(incomeInput.value);
+    try {
+        const res = await fetch('/api/update-json', {
+            method: 'POST',
+            headers: {'Content-Type':'application/json'},
+            body: JSON.stringify({ income: newIncome })
+        });
+        const result = await res.json();
+        jsonMessage.textContent = result.message;
+        loadSummary();
+    } catch(e) {
+        console.error("Error updating income:", e);
+    }
+});
+
+// Reset all
+resetBtn.addEventListener('click', async () => {
+    if(!confirm("Are you sure you want to reset all data?")) return;
+    try {
+        const res = await fetch('/api/reset', { method:'POST' });
+        const result = await res.json();
+        alert(result.message);
+        loadSummary();
+        loadTransactions();
+    } catch(e) {
+        console.error("Error resetting data:", e);
+    }
+});
+
+// Initial load
+loadSummary();
+loadTransactions();
+
+</script></body>
+</html>
